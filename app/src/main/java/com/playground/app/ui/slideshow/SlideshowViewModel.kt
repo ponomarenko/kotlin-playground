@@ -1,4 +1,4 @@
-package com.playground.kotlinplayground.ui.slideshow
+package com.playground.app.ui.slideshow
 
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
