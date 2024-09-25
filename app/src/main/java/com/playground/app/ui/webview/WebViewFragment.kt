@@ -2,8 +2,11 @@ package com.playground.app.ui.webview
 
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.app.Activity.RESULT_OK
+import android.content.ContentValues.TAG
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -11,13 +14,17 @@ import android.os.Environment
 import android.os.Parcelable
 import android.provider.MediaStore
 import android.util.Log
+import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.ConsoleMessage
 import android.webkit.JavascriptInterface
+import android.webkit.PermissionRequest
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
+import android.webkit.WebResourceError
+import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
@@ -34,7 +41,6 @@ import java.util.Date
 
 
 class WebViewFragment : Fragment() {
-
     private var _binding: FragmentWebviewBinding? = null
     private lateinit var webView: WebView
 
@@ -52,9 +58,6 @@ class WebViewFragment : Fragment() {
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
-        val slideshowViewModel =
-            ViewModelProvider(this).get(WebViewModel::class.java)
-
         _binding = FragmentWebviewBinding.inflate(inflater, container, false)
         val root: View = binding.root
 
@@ -72,17 +75,36 @@ class WebViewFragment : Fragment() {
 
     @SuppressLint("SetJavaScriptEnabled")
     private fun setUpWebView() {
+        webView.webViewClient = object : WebViewClient() {
+            override fun onReceivedError(
+                view: WebView?,
+                request: WebResourceRequest?,
+                error: WebResourceError?
+            ) {
+                Log.d("Js Error", error.toString())
+                super.onReceivedError(view, request, error)
+            }
 
-        webView.webViewClient = WebViewClient()
+            override fun onUnhandledKeyEvent(view: WebView?, event: KeyEvent?) {
+                Log.d("Js UnhandledKeyEvent", event.toString())
+                super.onUnhandledKeyEvent(view, event)
+            }
+        }
 
-        val webViewSettings = webView.settings
-        webViewSettings.javaScriptEnabled = true
-        webViewSettings.domStorageEnabled = true
-        webViewSettings.allowFileAccess = true
-        webViewSettings.allowContentAccess = true
-        webViewSettings.setSupportZoom(true)
+        WebView.setWebContentsDebuggingEnabled(true)
+
+        webView.settings.apply {
+            allowFileAccess = true
+            allowContentAccess = true
+            domStorageEnabled = true
+            javaScriptEnabled = true
+            mediaPlaybackRequiresUserGesture = false
+            useWideViewPort = true
+            setSupportZoom(true)
+        }
 
         webView.loadUrl("file:///android_asset/input-file-capture.html")
+        // webView.loadUrl("https://ponomarenko.github.io/30-seconds-of-web/media-devices")
 
         webView.addJavascriptInterface(
             WebAppInterface(MainActivity.applicationContext().applicationContext),
@@ -119,6 +141,10 @@ class WebViewFragment : Fragment() {
         override fun onConsoleMessage(consoleMessage: ConsoleMessage): Boolean {
             Log.d("WebView", consoleMessage.message())
             return true
+        }
+
+        override fun onPermissionRequest(request: PermissionRequest) {
+            request.grant(request.resources)
         }
     }
 
