@@ -21,8 +21,41 @@
     </style>
     <script>
         (function (client) {
-          console.log('getAndroidVersion:', client.getAndroidVersion());
-          client.showToast();
+          // Ensure client is defined before proceeding
+          if (!client) {
+            console.error('Client object not available.');
+            return;
+          }
+
+          // Show loader and log the action
+          client.dispatchEvent('loader.show');
+          console.log('Loader shown.');
+
+          // Display and log the first toast message
+          const initialToastMessage = 'Loading... Please wait.';
+          client.showToast(initialToastMessage);
+          console.log(`Toast message: ${initialToastMessage}`);
+
+          // Try to get the Android version and handle potential errors
+          let androidVersion;
+          try {
+            androidVersion = client.getAndroidVersion();
+            console.log('Android version:', androidVersion);
+          } catch (error) {
+            console.error('Error retrieving Android version:', error);
+          }
+
+          // Delay for 5 seconds before proceeding
+          setTimeout(() => {
+            // Display and log the final toast message
+            const finalToastMessage = 'Process completed.';
+            client.showToast(finalToastMessage);
+            console.log(`Toast message: ${finalToastMessage}`);
+
+            // Hide loader and log the action
+            client.dispatchEvent('loader.hide');
+            console.log('Loader hidden.');
+          }, 5000);
         })(window['appClient'] || (window['appClient'] = {}));
     </script>
 </head>

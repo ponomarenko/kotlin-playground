@@ -2,11 +2,8 @@ package com.playground.app.ui.webview
 
 import android.annotation.SuppressLint
 import android.app.Activity
-import android.app.Activity.RESULT_OK
-import android.content.ContentValues.TAG
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -27,11 +24,11 @@ import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.ProgressBar
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.FileProvider
 import androidx.fragment.app.Fragment
-import androidx.lifecycle.ViewModelProvider
 import com.playground.app.MainActivity
 import com.playground.app.databinding.FragmentWebviewBinding
 import java.io.File
@@ -41,8 +38,19 @@ import java.util.Date
 
 
 class WebViewFragment : Fragment() {
+    companion object {
+        const val userAgent = "AndroidWebView/1.0.0"
+    }
+
+    fun Any.log(message: String) {
+        val className = this::class.java.simpleName
+        Log.d(className, message)
+    }
+
     private var _binding: FragmentWebviewBinding? = null
     private lateinit var webView: WebView
+    private lateinit var progressBar: ProgressBar
+    private lateinit var progressBarHorizontal: ProgressBar
 
     // file upload
     private var uploadCallback: ValueCallback<Array<Uri>>? = null
@@ -54,14 +62,15 @@ class WebViewFragment : Fragment() {
     private val binding get() = _binding!!
 
     override fun onCreateView(
-        inflater: LayoutInflater,
-        container: ViewGroup?,
-        savedInstanceState: Bundle?
+        inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
     ): View {
         _binding = FragmentWebviewBinding.inflate(inflater, container, false)
         val root: View = binding.root
 
         webView = binding.webview
+
+        progressBar = binding.progressBar
+        progressBarHorizontal = binding.progressBarHorizontal
 
         setUpWebView()
 
@@ -77,42 +86,35 @@ class WebViewFragment : Fragment() {
     private fun setUpWebView() {
         webView.webViewClient = object : WebViewClient() {
             override fun onReceivedError(
-                view: WebView?,
-                request: WebResourceRequest?,
-                error: WebResourceError?
+                view: WebView?, request: WebResourceRequest?, error: WebResourceError?
             ) {
-                Log.d("Js Error", error.toString())
+                log(error.toString())
                 super.onReceivedError(view, request, error)
             }
 
             override fun onUnhandledKeyEvent(view: WebView?, event: KeyEvent?) {
-                Log.d("Js UnhandledKeyEvent", event.toString())
+                log(event.toString())
                 super.onUnhandledKeyEvent(view, event)
             }
         }
 
-        WebView.setWebContentsDebuggingEnabled(true)
-
         webView.settings.apply {
+            userAgentString = userAgent
             allowFileAccess = true
             allowContentAccess = true
             domStorageEnabled = true
             javaScriptEnabled = true
             mediaPlaybackRequiresUserGesture = false
             useWideViewPort = true
-            setSupportZoom(true)
         }
 
-        webView.loadUrl("file:///android_asset/input-file-capture.html")
-        // webView.loadUrl("https://ponomarenko.github.io/30-seconds-of-web/media-devices")
+        webView.loadUrl("file:///android_asset/webview.html")
 
         webView.addJavascriptInterface(
-            WebAppInterface(MainActivity.applicationContext().applicationContext),
-            "appClient"
+            WebAppInterface(MainActivity.applicationContext().applicationContext), "appClient"
         )
 
-        webView.webChromeClient = MyWebChromeClient()
-
+        webView.webChromeClient = CustomWebChromeClient()
     }
 
     inner class WebAppInterface(private val mContext: Context) {
@@ -122,12 +124,36 @@ class WebViewFragment : Fragment() {
         }
 
         @JavascriptInterface
-        fun showToast() {
-            Toast.makeText(mContext, "Toast from android", Toast.LENGTH_SHORT).show()
+        fun showToast(msg: String) {
+            log("showToast => $msg")
+            Toast.makeText(mContext, msg, Toast.LENGTH_SHORT).show()
+        }
+
+        @JavascriptInterface
+        fun dispatchEvent(eventName: String) {
+            log("dispatchEvent => $eventName")
+            activity?.runOnUiThread {
+                when (eventName) {
+                    "app.loaded" -> binding.progressBar.visibility = View.GONE
+                    "loader.show" -> binding.progressBar.visibility = View.VISIBLE
+                    "loader.hide" -> binding.progressBar.visibility = View.GONE
+                    else -> {
+                        log("Unhandled event!")
+                    }
+                }
+            }
         }
     }
 
-    inner class MyWebChromeClient : WebChromeClient() {
+    inner class CustomWebChromeClient : WebChromeClient() {
+        override fun onProgressChanged(view: WebView?, newProgress: Int) {
+            super.onProgressChanged(view, newProgress)
+            progressBarHorizontal.progress = newProgress
+            if (newProgress == 100) {
+                progressBarHorizontal.visibility = View.GONE
+            }
+        }
+
         override fun onShowFileChooser(
             webView: WebView?,
             filePathCallback: ValueCallback<Array<Uri>>?, // TODO: make it backward compatible
@@ -139,7 +165,7 @@ class WebViewFragment : Fragment() {
         }
 
         override fun onConsoleMessage(consoleMessage: ConsoleMessage): Boolean {
-            Log.d("WebView", consoleMessage.message())
+            log(consoleMessage.message())
             return true
         }
 
@@ -155,8 +181,7 @@ class WebViewFragment : Fragment() {
         try {
             photoFile = createImageFile()
             imageUri = FileProvider.getUriForFile(
-                MainActivity.applicationContext().applicationContext, authorities,
-                photoFile!!
+                MainActivity.applicationContext().applicationContext, authorities, photoFile!!
             )
         } catch (e: IOException) {
             e.printStackTrace()
